@@ -23,6 +23,7 @@
 > import Control.Monad.State ( MonadState(..), modify )
 > import Data.Maybe (fromMaybe)
 > import Prelude hiding ( getContents, pi )
+> import GHC.IO.Encoding (setLocaleEncoding)
 >
 > import qualified Version as V
 > import TeXCommands
@@ -58,6 +59,7 @@
 >   (o,n,[])                    -> do hSetEncoding stdin  utf8
 >                                     hSetEncoding stdout utf8
 >                                     hSetEncoding stderr utf8
+>                                     setLocaleEncoding utf8 -- for readFile
 >                                     (flags,initdirs,styles)
 >                                        <- foldM (\(s,d,x) (sf,df,ns) -> do s' <- sf s
 >                                                                            return (s',df d,ns ++ x))
@@ -116,7 +118,9 @@ f3 is the output file
 > preprocess flags dirs lit (f1:f2:f3:_)
 >                               =  if (f1 == f2) && not lit
 >                                  then copyFile f2 f3
->                                  else do c <- readFile f2
+>                                  else do h <- openFile f2 ReadMode
+>                                          hSetEncoding h utf8
+>                                          c <- hGetContents h
 >                                          case matchRegex (mkRegexWithOpts "^%include" True False) c of
 >                                            Nothing -> if lit then
 >                                                          do h <- openOutputFile f3
@@ -528,7 +532,7 @@ Output is the result in string form.
 >                                         ex  =  externals st
 >                                         ghcimode       =  "ghci" `isPrefixOf` os
 >                                         cmd
->                                           | ghcimode   =  os ++ " -v0 -ignore-dot-ghci " ++ f
+>                                           | ghcimode   =  "LANG=C.UTF-8 " ++ os ++ " -v0 -ignore-dot-ghci " ++ f
 >                                           | otherwise  =  (if null os then "hugs " else os ++ " ") ++ f
 >                                         script         =  "putStrLn " ++ show magic ++ "\n"
 >                                                             ++ expr ++ "\n"
@@ -544,6 +548,8 @@ Output is the result in string form.
 >                                     let (pin,pout,_,_) = pi
 >                                     liftIO $ do
 >                                       -- hPutStrLn stderr ("sending: " ++ script)
+>                                       hSetEncoding pin utf8
+>                                       hSetEncoding pout utf8
 >                                       hPutStr pin script
 >                                       hFlush pin
 >                                       extract' pout
